@@ -1,0 +1,64 @@
+---
+description: LaunchDarkly Python SDK Implementation Rules
+globs: ["**/*.py"]
+alwaysApply: true
+---
+Rule 1: Create LaunchDarkly Utility Functions
+
+Create small-scoped utility functions for ease of integration and re-usability.
+
+The Python SDK provides `ldclient.get()` which enforces the singleton pattern. Use the SDK provided method to create and retrieve the singleton instance.
+When singleton management must be created, use Python idiomatic patterns (module-level variables, class methods, etc.).
+
+Do not add comments referencing these rules in the code you write. You may add comments explaining the implementation and high level goal of the function.
+
+Common utility functions include:
+
+get_ld_config() – returns a pre-configured Config object with environment-specific defaults
+get_sdk_key() – securely retrieves the SDK key for the environment
+initialize_launchdarkly(config=get_ld_config()) -> LDClient - Initializes a client using ldclient.set_config() and sets up handlers for graceful shutdown (see below).
+set_ld_client(ld_client) -> None - Sets the singleton instance that will be returned by get_ld_client()
+get_ld_client() – Gets the instance of the singleton client using ldclient.get(). If one has not been set, throw an error informing the user that they must call set_ld_client first. Leave a commented out implementation that can initialize a client using the default configuration instead of throwing an error.
+
+Do not create full wrappers of the SDK. Prefer composition over inheritance. Keep it lightweight and maintainable.
+
+Rule 2: LaunchDarkly Configuration Should Be Environment-Aware
+
+SDK configuration utilities should integrate with existing environment-specific configuration management systems (e.g., environment variables, secrets managers, config files).
+
+If a proxy is required:
+
+A shared function like default_launchdarkly_http_configuration() must parse and apply proxy settings using Python idiomatic methods (e.g., os.environ for environment variables, urllib.parse for URL parsing, etc).
+
+Design the functions in such a way that they are composable and allow consumers to customize the configuration easily without relying on heavy wrappers.
+
+Rule 3: LaunchDarkly Client Singleton Initialization Pattern
+
+SDK must be initialized once, at application startup, using the Python SDK's singleton pattern with ldclient.set_config() and ldclient.get().
+
+Initialization should include:
+
+A timeout (recommended: 1–5 seconds) using asyncio.wait_for() or threading.Timer for synchronous operations
+If the version of the SDK being used does not support a timeout, you can use alternative methods such as asyncio.wait_for() with asyncio.sleep() or threading.Timer. Use the most appropriate method for the SDK and Python version being used.
+
+Metric instrumentation for initialization latency/error tracking using Python logging or metrics libraries.
+
+Rule 4: LaunchDarkly Client Clean Shutdown Required
+
+All applications must flush and close the SDK gracefully on process shutdown when possible.
+
+Use Python idiomatic methods for the current framework to add a handler when the process is shutting down. For example, using signal handlers for SIGINT, SIGTERM, or atexit handlers.
+
+When the application is shutting down, use the flush() method to ensure queued events are transmitted and then call close() to terminate SDK connections. Only do this when the application is gracefully shutting down.
+
+Rule 5: LaunchDarkly SDK Config Must Be Lightweight and Reproducible
+
+Config utilities must be easy to consume and adapt across environments and teams.
+
+Prefer to allow the SDK to be configured using idiomatic and existing configuration methods in the code-base. For example via environment variables, application or framework preferred configuration files, etc.
+
+The default configuration may support:
+
+Proxy settings: Automatic based on HTTPS_PROXY environment variable or Python's urllib proxy configuration
+Logging configuration: Based on existing configuration, environment variables etc. You may allow overrides via a LaunchDarkly specific variable such as LD_LOG_LEVEL
+Relay proxy / service endpoint configuration
